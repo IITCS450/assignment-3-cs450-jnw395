@@ -107,5 +107,5 @@ sys_settickets(void)
 
   struct proc *p = myproc();
   p->tickets = n;
-  return 0
+  return 0;
 }

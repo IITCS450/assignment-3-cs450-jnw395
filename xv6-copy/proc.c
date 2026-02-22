@@ -14,7 +14,7 @@ int
 rand(void)
 {
   randstate = randstate * 1664525 + 1013904223;
-  return (int)(randstate & 0x7fffffff);
+  return (randstate >> 16) & 0x7fff;
 }
 
 struct {
