@@ -7,6 +7,16 @@
 #include "proc.h"
 #include "spinlock.h"
 
+// Helper function of random (basic LCG)
+static unsigned long randstate = 1;
+
+int
+rand(void)
+{
+  randstate = randstate * 1664525 + 1013904223;
+  return (int)(randstate & 0x7fffffff);
+}
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -88,6 +98,8 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+
+  p->tickets = 1;   // set default tickets = 1
 
   release(&ptable.lock);
 
@@ -329,29 +341,56 @@ scheduler(void)
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
-    // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+    // Compute total tickets
+    int total = 0; 
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    {
+      if(p->state == RUNNABLE)
+      {
+        total += p->tickets;
+      }
     }
-    release(&ptable.lock);
 
+    // Draw lottery
+    if (total > 0)
+    {
+      int winner = rand() % total;  // pick winner randomly
+
+      // Find winner
+      int running_sum = 0;
+      for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+      {
+        if(p->state != RUNNABLE)
+        {
+          continue;
+        }
+
+        running_sum += p->tickets; // add ticket blocks until upperbound hit
+        if(running_sum > winner)
+        {
+          // Run process
+          // Switch to chosen process.  It is the process's job
+          // to release ptable.lock and then reacquire it
+          // before jumping back to us.
+          c->proc = p;
+          switchuvm(p);
+          p->state = RUNNING;
+
+          swtch(&(c->scheduler), p->context);
+          switchkvm();
+
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+          break;
+        }
+      }
+    }
+
+    release(&ptable.lock);
   }
 }
 

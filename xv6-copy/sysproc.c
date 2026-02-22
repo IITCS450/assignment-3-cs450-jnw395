@@ -89,3 +89,23 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// set up tickets
+int 
+sys_settickets(void)
+{
+  int n;
+  // check if valid arg; if not return -1
+  if(argint(0, &n) < 0){
+    return -1;
+  }
+
+  // check if n >= 1; if not return -1
+  if(n < 1){
+    return -1;
+  }
+
+  struct proc *p = myproc();
+  p->tickets = n;
+  return 0
+}
